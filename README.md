@@ -1,212 +1,416 @@
-# negotiator
+# router
 
 [![NPM Version][npm-image]][npm-url]
 [![NPM Downloads][downloads-image]][downloads-url]
 [![Node.js Version][node-version-image]][node-version-url]
-[![Build Status][github-actions-ci-image]][github-actions-ci-url]
+[![Build Status][ci-image]][ci-url]
 [![Test Coverage][coveralls-image]][coveralls-url]
 
-An HTTP content negotiator for Node.js
+Simple middleware-style router
 
 ## Installation
 
-```sh
-$ npm install negotiator
+This is a [Node.js](https://nodejs.org/en/) module available through the
+[npm registry](https://www.npmjs.com/). Installation is done using the
+[`npm install` command](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
+
+```bash
+$ npm install router
 ```
 
 ## API
 
 ```js
-var Negotiator = require('negotiator')
+var finalhandler = require('finalhandler')
+var http = require('http')
+var Router = require('router')
+
+var router = Router()
+router.get('/', function (req, res) {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.end('Hello World!')
+})
+
+var server = http.createServer(function (req, res) {
+  router(req, res, finalhandler(req, res))
+})
+
+server.listen(3000)
 ```
 
-### Accept Negotiation
+This module is currently an extracted version from the Express project,
+but with the main change being it can be used with a plain `http.createServer`
+object or other web frameworks by removing Express-specific API calls.
+
+## Router(options)
+
+Options
+
+- `strict`        - When `false` trailing slashes are optional (default: `false`)
+- `caseSensitive` - When `true` the routing will be case sensitive. (default: `false`)
+- `mergeParams`   - When `true` any `req.params` passed to the router will be
+  merged into the router's `req.params`. (default: `false`) ([example](#example-using-mergeparams))
+
+Returns a function with the signature `router(req, res, callback)` where
+`callback([err])` must be provided to handle errors and fall-through from
+not handling requests.
+
+### router.use([path], ...middleware)
+
+Use the given [middleware function](#middleware) for all http methods on the
+given `path`, defaulting to the root path.
+
+`router` does not automatically see `use` as a handler. As such, it will not
+consider it one for handling `OPTIONS` requests.
+
+* Note: If a `path` is specified, that `path` is stripped from the start of
+  `req.url`.
+
+<!-- eslint-disable no-undef -->
 
 ```js
-availableMediaTypes = ['text/html', 'text/plain', 'application/json']
+router.use(function (req, res, next) {
+  // do your things
 
-// The negotiator constructor receives a request object
-negotiator = new Negotiator(request)
+  // continue to the next middleware
+  // the request will stall if this is not called
+  next()
 
-// Let's say Accept header is 'text/html, application/*;q=0.2, image/jpeg;q=0.8'
-
-negotiator.mediaTypes()
-// -> ['text/html', 'image/jpeg', 'application/*']
-
-negotiator.mediaTypes(availableMediaTypes)
-// -> ['text/html', 'application/json']
-
-negotiator.mediaType(availableMediaTypes)
-// -> 'text/html'
+  // note: you should NOT call `next` if you have begun writing to the response
+})
 ```
 
-You can check a working example at `examples/accept.js`.
+[Middleware](#middleware) can themselves use `next('router')` at any time to
+exit the current router instance completely, invoking the top-level callback.
 
-#### Methods
+### router\[method](path, ...[middleware], handler)
 
-##### mediaType()
+The [http methods](https://github.com/jshttp/methods/blob/master/index.js) provide
+the routing functionality in `router`.
 
-Returns the most preferred media type from the client.
+Method middleware and handlers follow usual [middleware](#middleware) behavior,
+except they will only be called when the method and path match the request.
 
-##### mediaType(availableMediaType)
-
-Returns the most preferred media type from a list of available media types.
-
-##### mediaTypes()
-
-Returns an array of preferred media types ordered by the client preference.
-
-##### mediaTypes(availableMediaTypes)
-
-Returns an array of preferred media types ordered by priority from a list of
-available media types.
-
-### Accept-Language Negotiation
+<!-- eslint-disable no-undef -->
 
 ```js
-negotiator = new Negotiator(request)
-
-availableLanguages = ['en', 'es', 'fr']
-
-// Let's say Accept-Language header is 'en;q=0.8, es, pt'
-
-negotiator.languages()
-// -> ['es', 'pt', 'en']
-
-negotiator.languages(availableLanguages)
-// -> ['es', 'en']
-
-language = negotiator.language(availableLanguages)
-// -> 'es'
+// handle a `GET` request
+router.get('/', function (req, res) {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.end('Hello World!')
+})
 ```
 
-You can check a working example at `examples/language.js`.
+[Middleware](#middleware) given before the handler have one additional trick,
+they may invoke `next('route')`. Calling `next('route')` bypasses the remaining
+middleware and the handler mounted for this route, passing the request to the
+next route suitable for handling this request.
 
-#### Methods
+Route handlers and middleware can themselves use `next('router')` at any time
+to exit the current router instance completely, invoking the top-level callback.
 
-##### language()
+### router.param(name, param_middleware)
 
-Returns the most preferred language from the client.
+Maps the specified path parameter `name` to a specialized param-capturing middleware.
 
-##### language(availableLanguages)
+This function positions the middleware in the same stack as `.use`.
 
-Returns the most preferred language from a list of available languages.
+The function can optionally return a `Promise` object. If a `Promise` object
+is returned from the function, the router will attach an `onRejected` callback
+using `.then`. If the promise is rejected, `next` will be called with the
+rejected value, or an error if the value is falsy.
 
-##### languages()
+Parameter mapping is used to provide pre-conditions to routes
+which use normalized placeholders. For example a _:user_id_ parameter
+could automatically load a user's information from the database without
+any additional code:
 
-Returns an array of preferred languages ordered by the client preference.
-
-##### languages(availableLanguages)
-
-Returns an array of preferred languages ordered by priority from a list of
-available languages.
-
-### Accept-Charset Negotiation
+<!-- eslint-disable no-undef -->
 
 ```js
-availableCharsets = ['utf-8', 'iso-8859-1', 'iso-8859-5']
+router.param('user_id', function (req, res, next, id) {
+  User.find(id, function (err, user) {
+    if (err) {
+      return next(err)
+    } else if (!user) {
+      return next(new Error('failed to load user'))
+    }
+    req.user = user
 
-negotiator = new Negotiator(request)
-
-// Let's say Accept-Charset header is 'utf-8, iso-8859-1;q=0.8, utf-7;q=0.2'
-
-negotiator.charsets()
-// -> ['utf-8', 'iso-8859-1', 'utf-7']
-
-negotiator.charsets(availableCharsets)
-// -> ['utf-8', 'iso-8859-1']
-
-negotiator.charset(availableCharsets)
-// -> 'utf-8'
+    // continue processing the request
+    next()
+  })
+})
 ```
 
-You can check a working example at `examples/charset.js`.
+### router.route(path)
 
-#### Methods
+Creates an instance of a single `Route` for the given `path`.
+(See `Router.Route` below)
 
-##### charset()
+Routes can be used to handle http `methods` with their own, optional middleware.
 
-Returns the most preferred charset from the client.
+Using `router.route(path)` is a recommended approach to avoiding duplicate
+route naming and thus typo errors.
 
-##### charset(availableCharsets)
-
-Returns the most preferred charset from a list of available charsets.
-
-##### charsets()
-
-Returns an array of preferred charsets ordered by the client preference.
-
-##### charsets(availableCharsets)
-
-Returns an array of preferred charsets ordered by priority from a list of
-available charsets.
-
-### Accept-Encoding Negotiation
+<!-- eslint-disable no-undef, no-unused-vars -->
 
 ```js
-availableEncodings = ['identity', 'gzip']
-
-negotiator = new Negotiator(request)
-
-// Let's say Accept-Encoding header is 'gzip, compress;q=0.2, identity;q=0.5'
-
-negotiator.encodings()
-// -> ['gzip', 'identity', 'compress']
-
-negotiator.encodings(availableEncodings)
-// -> ['gzip', 'identity']
-
-negotiator.encoding(availableEncodings)
-// -> 'gzip'
+var api = router.route('/api/')
 ```
 
-You can check a working example at `examples/encoding.js`.
+## Router.Route(path)
 
-#### Methods
+Represents a single route as an instance that can be used to handle http
+`methods` with it's own, optional middleware.
 
-##### encoding()
+### route\[method](handler)
 
-Returns the most preferred encoding from the client.
+These are functions which you can directly call on a route to register a new
+`handler` for the `method` on the route.
 
-##### encoding(availableEncodings)
+<!-- eslint-disable no-undef -->
 
-Returns the most preferred encoding from a list of available encodings.
+```js
+// handle a `GET` request
+var status = router.route('/status')
 
-##### encoding(availableEncodings, { preferred })
+status.get(function (req, res) {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.end('All Systems Green!')
+})
+```
 
-Returns the most preferred encoding from a list of available encodings, while prioritizing based on `preferred` array between same-quality encodings.
+### route.all(handler)
 
-##### encodings()
+Adds a handler for all HTTP methods to this route.
 
-Returns an array of preferred encodings ordered by the client preference.
+The handler can behave like middleware and call `next` to continue processing
+rather than responding.
 
-##### encodings(availableEncodings)
+<!-- eslint-disable no-undef -->
 
-Returns an array of preferred encodings ordered by priority from a list of
-available encodings.
+```js
+router.route('/')
+  .all(function (req, res, next) {
+    next()
+  })
+  .all(checkSomething)
+  .get(function (req, res) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    res.end('Hello World!')
+  })
+```
 
-##### encodings(availableEncodings, { preferred })
+## Middleware
 
-Returns an array of preferred encodings ordered by priority from a list of
-available encodings, while prioritizing based on `preferred` array between same-quality encodings.
+Middleware (and method handlers) are functions that follow specific function
+parameters and have defined behavior when used with `router`. The most common
+format is with three parameters - "req", "res" and "next".
 
-## See Also
+- `req`  - This is a [HTTP incoming message](https://nodejs.org/api/http.html#http_http_incomingmessage) instance.
+- `res`  - This is a [HTTP server response](https://nodejs.org/api/http.html#http_class_http_serverresponse) instance.
+- `next` - Calling this function that tells `router` to proceed to the next matching middleware or method handler. It accepts an error as the first argument.
 
-The [accepts](https://npmjs.org/package/accepts#readme) module builds on
-this module and provides an alternative interface, mime type validation,
-and more.
+The function can optionally return a `Promise` object. If a `Promise` object
+is returned from the function, the router will attach an `onRejected` callback
+using `.then`. If the promise is rejected, `next` will be called with the
+rejected value, or an error if the value is falsy.
+
+Middleware and method handlers can also be defined with four arguments. When
+the function has four parameters defined, the first argument is an error and
+subsequent arguments remain, becoming - "err", "req", "res", "next". These
+functions are "error handling middleware", and can be used for handling
+errors that occurred in previous handlers (E.g. from calling `next(err)`).
+This is most used when you want to define arbitrary rendering of errors.
+
+<!-- eslint-disable no-undef -->
+
+```js
+router.get('/error_route', function (req, res, next) {
+  return next(new Error('Bad Request'))
+})
+
+router.use(function (err, req, res, next) {
+  res.end(err.message) //= > "Bad Request"
+})
+```
+
+Error handling middleware will **only** be invoked when an error was given. As
+long as the error is in the pipeline, normal middleware and handlers will be
+bypassed - only error handling middleware will be invoked with an error.
+
+## Examples
+
+```js
+// import our modules
+var http = require('http')
+var Router = require('router')
+var finalhandler = require('finalhandler')
+var compression = require('compression')
+var bodyParser = require('body-parser')
+
+// store our message to display
+var message = 'Hello World!'
+
+// initialize the router & server and add a final callback.
+var router = Router()
+var server = http.createServer(function onRequest (req, res) {
+  router(req, res, finalhandler(req, res))
+})
+
+// use some middleware and compress all outgoing responses
+router.use(compression())
+
+// handle `GET` requests to `/message`
+router.get('/message', function (req, res) {
+  res.statusCode = 200
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.end(message + '\n')
+})
+
+// create and mount a new router for our API
+var api = Router()
+router.use('/api/', api)
+
+// add a body parsing middleware to our API
+api.use(bodyParser.json())
+
+// handle `PATCH` requests to `/api/set-message`
+api.patch('/set-message', function (req, res) {
+  if (req.body.value) {
+    message = req.body.value
+
+    res.statusCode = 200
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    res.end(message + '\n')
+  } else {
+    res.statusCode = 400
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    res.end('Invalid API Syntax\n')
+  }
+})
+
+// make our http server listen to connections
+server.listen(8080)
+```
+
+You can get the message by running this command in your terminal,
+ or navigating to `127.0.0.1:8080` in a web browser.
+```bash
+curl http://127.0.0.1:8080
+```
+
+You can set the message by sending it a `PATCH` request via this command:
+```bash
+curl http://127.0.0.1:8080/api/set-message -X PATCH -H "Content-Type: application/json" -d '{"value":"Cats!"}'
+```
+
+### Example using mergeParams
+
+```js
+var http = require('http')
+var Router = require('router')
+var finalhandler = require('finalhandler')
+
+// this example is about the mergeParams option
+var opts = { mergeParams: true }
+
+// make a router with out special options
+var router = Router(opts)
+var server = http.createServer(function onRequest (req, res) {
+  // set something to be passed into the router
+  req.params = { type: 'kitten' }
+
+  router(req, res, finalhandler(req, res))
+})
+
+router.get('/', function (req, res) {
+  res.statusCode = 200
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+
+  // with respond with the the params that were passed in
+  res.end(req.params.type + '\n')
+})
+
+// make another router with our options
+var handler = Router(opts)
+
+// mount our new router to a route that accepts a param
+router.use('/:path', handler)
+
+handler.get('/', function (req, res) {
+  res.statusCode = 200
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+
+  // will respond with the param of the router's parent route
+  res.end(req.params.path + '\n')
+})
+
+// make our http server listen to connections
+server.listen(8080)
+```
+
+Now you can get the type, or what path you are requesting:
+```bash
+curl http://127.0.0.1:8080
+> kitten
+curl http://127.0.0.1:8080/such_path
+> such_path
+```
+
+### Example of advanced `.route()` usage
+
+This example shows how to implement routes where there is a custom
+handler to execute when the path matched, but no methods matched.
+Without any special handling, this would be treated as just a
+generic non-match by `router` (which typically results in a 404),
+but with a custom handler, a `405 Method Not Allowed` can be sent.
+
+```js
+var http = require('http')
+var finalhandler = require('finalhandler')
+var Router = require('router')
+
+// create the router and server
+var router = new Router()
+var server = http.createServer(function onRequest (req, res) {
+  router(req, res, finalhandler(req, res))
+})
+
+// register a route and add all methods
+router.route('/pet/:id')
+  .get(function (req, res) {
+    // this is GET /pet/:id
+    res.setHeader('Content-Type', 'application/json')
+    res.end(JSON.stringify({ name: 'tobi' }))
+  })
+  .delete(function (req, res) {
+    // this is DELETE /pet/:id
+    res.end()
+  })
+  .all(function (req, res) {
+    // this is called for all other methods not
+    // defined above for /pet/:id
+    res.statusCode = 405
+    res.end()
+  })
+
+// make our http server listen to connections
+server.listen(8080)
+```
 
 ## License
 
 [MIT](LICENSE)
 
-[npm-image]: https://img.shields.io/npm/v/negotiator.svg
-[npm-url]: https://npmjs.org/package/negotiator
-[node-version-image]: https://img.shields.io/node/v/negotiator.svg
-[node-version-url]: https://nodejs.org/en/download/
-[coveralls-image]: https://img.shields.io/coveralls/jshttp/negotiator/master.svg
-[coveralls-url]: https://coveralls.io/r/jshttp/negotiator?branch=master
-[downloads-image]: https://img.shields.io/npm/dm/negotiator.svg
-[downloads-url]: https://npmjs.org/package/negotiator
-[github-actions-ci-image]: https://img.shields.io/github/workflow/status/jshttp/negotiator/ci/master?label=ci
-[github-actions-ci-url]: https://github.com/jshttp/negotiator/actions/workflows/ci.yml
+[ci-image]: https://badgen.net/github/checks/pillarjs/router/master?label=ci
+[ci-url]: https://github.com/pillarjs/router/actions/workflows/ci.yml
+[npm-image]: https://img.shields.io/npm/v/router.svg
+[npm-url]: https://npmjs.org/package/router
+[node-version-image]: https://img.shields.io/node/v/router.svg
+[node-version-url]: http://nodejs.org/download/
+[coveralls-image]: https://img.shields.io/coveralls/pillarjs/router/master.svg
+[coveralls-url]: https://coveralls.io/r/pillarjs/router?branch=master
+[downloads-image]: https://img.shields.io/npm/dm/router.svg
+[downloads-url]: https://npmjs.org/package/router
