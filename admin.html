@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Panel</title>
+</head>
+<body>
+
+<h2>All Bookings</h2>
+<div id="bookings"></div>
+
+<script>
+fetch('http://localhost:5000/bookings')
+.then(res => res.json())
+.then(data => {
+  const div = document.getElementById('bookings');
+
+  data.forEach(b => {
+    div.innerHTML += `
+      <p>${b.name} booked ${b.equipment} on ${b.date}</p>
+    `;
+  });
+});
+</script>
+
+</body>
+</html>

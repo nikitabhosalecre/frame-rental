@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AgroRent</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      margin: 0;
+      background: #e8f5e9;
+    }
+
+    nav {
+      background: green;
+      padding: 15px;
+      text-align: center;
+    }
+
+    nav a {
+      color: white;
+      margin: 15px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    header {
+      text-align: center;
+      padding: 30px;
+    }
+
+    section {
+      display: none;
+      padding: 20px;
+    }
+
+    .active {
+      display: block;
+    }
+
+    #equipment {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .card {
+      background: white;
+      padding: 15px;
+      width: 200px;
+      border-radius: 10px;
+      text-align: center;
+      transition: 0.3s;
+    }
+
+    .card:hover {
+      transform: scale(1.05);
+    }
+
+    button {
+      background: green;
+      color: white;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+    }
+
+    input, select {
+      padding: 10px;
+      margin: 10px;
+    }
+
+    footer {
+      background: #1b5e20;
+      color: white;
+      text-align: center;
+      padding: 10px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+
+<body>
+    <p>
+⭐ ⭐ ⭐ ⭐ ⭐
+</p>
+
+<nav>
+  <a onclick="showPage('home')">Home</a>
+  <a onclick="showPage('about')">About</a>
+  <a onclick="showPage('contact')">Contact</a>
+  <a onclick="showPage('history')">Bookings</a>
+</nav>
+<a onclick="showPage('dashboard')">Dashboard</a>
+
+<header>
+  <h1>🌾 AgroRent</h1>
+  <p>Smart Farming Rental Platform</p>
+</header>
+
+<!-- HOME -->
+<section id="home" class="active">
+
+  <center>
+    <input type="text" id="search" placeholder="Search equipment..." onkeyup="filterData()">
+    
+    <select id="filter" onchange="filterData()">
+      <option value="">All</option>
+      <option value="Tractor">Tractor</option>
+      <option value="Seeder">Seeder</option>
+      <option value="Harvester">Harvester</option>
+      <option value="Sprayer">Sprayer</option>
+    </select>
+  </center>
+
+  <div id="equipment"></div>
+  <section id="dashboard">
+  <h2>Dashboard</h2>
+  <p id="stats"></p>
+</section>
+</section>
+
+<!-- ABOUT -->
+<section id="about">
+  <h2>About Us</h2>
+  <p>AgroRent helps farmers rent modern equipment easily.</p>
+</section>
+
+<!-- CONTACT -->
+<section id="contact">
+  <h2>Contact</h2>
+  <p>Email: agrorent@gmail.com</p>
+  <p>Phone: 9876543210</p>
+</section>
+
+<!-- HISTORY -->
+<section id="history">
+  <h2>Your Bookings</h2>
+  <ul id="bookingList"></ul>
+</section>
+
+<footer>
+  <p>© 2026 AgroRent | nikita bhosale 😎</p>
+</footer>
+
+<script>
+
+let allData = [];
+
+// Navigation
+function showPage(page) {
+  document.querySelectorAll("section").forEach(sec => {
+    sec.classList.remove("active");
+  });
+  document.getElementById(page).classList.add("active");
+
+  if(page === "history") loadBookings();
+  if(page === "dashboard") loadStats();
+}
+
+// Load equipment
+fetch('http://localhost:5000/equipment')
+.then(res => res.json())
+.then(data => {
+  allData = data;
+  displayData(data);
+});
+
+function displayData(data) {
+  const container = document.getElementById('equipment');
+  container.innerHTML = "";
+
+  data.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'card';
+
+    div.innerHTML = `
+      <h3>${item.name}</h3>
+      <p>₹${item.price}/day</p>
+      <button onclick="rent(${item.id})">Rent</button>
+    `;
+
+    container.appendChild(div);
+  });
+}
+
+// Search + Filter
+function filterData() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const filter = document.getElementById('filter').value;
+
+  const filtered = allData.filter(item =>
+    item.name.toLowerCase().includes(search) &&
+    (filter === "" || item.name.includes(filter))
+  );
+
+  displayData(filtered);
+}
+
+// Rent
+function rent(id) {
+  const name = prompt("Enter your name:");
+  const date = prompt("Enter booking date:");
+
+  if(!name || !date) {
+    alert("Fill details!");
+    return;
+  }
+
+
+  fetch('http://localhost:5000/rent', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ id, name, date })
+  })
+  .then(res => res.json())
+  .then(data => {
+    alert(data.message);
+  });
+}
+
+// Load bookings
+function loadBookings() {
+  fetch('http://localhost:5000/bookings')
+  .then(res => res.json())
+  .then(data => {
+    const list = document.getElementById('bookingList');
+    list.innerHTML = "";
+
+    data.forEach(b => {
+      const li = document.createElement('li');
+      li.innerText = `ID: ${b.id} | Name: ${b.name} | Date: ${b.date}`;
+      list.appendChild(li);
+    });
+  });
+}
+
+div.innerHTML = `
+  <img src="${item.image}" width="100%">
+  <h3>${item.name}</h3>
+  <p>₹${item.price}/day</p>
+  <p>⭐ Rating: ${item.rating}</p>
+  <button onclick="openModal(${item.id})">Rent</button>
+`;
+function loadStats() {
+  fetch('http://localhost:5000/stats')
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById('stats').innerText =
+      `Total Bookings: ${data.totalBookings} | Equipment: ${data.totalEquipment}`;
+  });
+}
+
+</script>
+
+</body>
+</html>
