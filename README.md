@@ -1,54 +1,117 @@
-# dunder-proto <sup>[![Version Badge][npm-version-svg]][package-url]</sup>
+# fresh
 
-[![github actions][actions-image]][actions-url]
-[![coverage][codecov-image]][codecov-url]
-[![License][license-image]][license-url]
-[![Downloads][downloads-image]][downloads-url]
+[![NPM Version][npm-image]][npm-url]
+[![NPM Downloads][downloads-image]][downloads-url]
+[![Node.js Version][node-version-image]][node-version-url]
+[![Build Status][ci-image]][ci-url]
+[![Test Coverage][coveralls-image]][coveralls-url]
 
-[![npm badge][npm-badge-png]][package-url]
+HTTP response freshness testing
 
-If available, the `Object.prototype.__proto__` accessor and mutator, call-bound.
+## Installation
 
-## Getting started
+This is a [Node.js](https://nodejs.org/en/) module available through the
+[npm registry](https://www.npmjs.com/). Installation is done using the
+[`npm install` command](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
 
-```sh
-npm install --save dunder-proto
+```
+$ npm install fresh
 ```
 
-## Usage/Examples
+## API
 
 ```js
-const assert = require('assert');
-const getDunder = require('dunder-proto/get');
-const setDunder = require('dunder-proto/set');
-
-const obj = {};
-
-assert.equal('toString' in obj, true);
-assert.equal(getDunder(obj), Object.prototype);
-
-setDunder(obj, null);
-
-assert.equal('toString' in obj, false);
-assert.equal(getDunder(obj), null);
+var fresh = require('fresh')
 ```
 
-## Tests
+### fresh(reqHeaders, resHeaders)
 
-Clone the repo, `npm install`, and run `npm test`
+Check freshness of the response using request and response headers.
 
-[package-url]: https://npmjs.org/package/dunder-proto
-[npm-version-svg]: https://versionbadg.es/es-shims/dunder-proto.svg
-[deps-svg]: https://david-dm.org/es-shims/dunder-proto.svg
-[deps-url]: https://david-dm.org/es-shims/dunder-proto
-[dev-deps-svg]: https://david-dm.org/es-shims/dunder-proto/dev-status.svg
-[dev-deps-url]: https://david-dm.org/es-shims/dunder-proto#info=devDependencies
-[npm-badge-png]: https://nodei.co/npm/dunder-proto.png?downloads=true&stars=true
-[license-image]: https://img.shields.io/npm/l/dunder-proto.svg
-[license-url]: LICENSE
-[downloads-image]: https://img.shields.io/npm/dm/dunder-proto.svg
-[downloads-url]: https://npm-stat.com/charts.html?package=dunder-proto
-[codecov-image]: https://codecov.io/gh/es-shims/dunder-proto/branch/main/graphs/badge.svg
-[codecov-url]: https://app.codecov.io/gh/es-shims/dunder-proto/
-[actions-image]: https://img.shields.io/endpoint?url=https://github-actions-badge-u3jn4tfpocch.runkit.sh/es-shims/dunder-proto
-[actions-url]: https://github.com/es-shims/dunder-proto/actions
+When the response is still "fresh" in the client's cache `true` is
+returned, otherwise `false` is returned to indicate that the client
+cache is now stale and the full response should be sent.
+
+When a client sends the `Cache-Control: no-cache` request header to
+indicate an end-to-end reload request, this module will return `false`
+to make handling these requests transparent.
+
+## Known Issues
+
+This module is designed to only follow the HTTP specifications, not
+to work-around all kinda of client bugs (especially since this module
+typically does not receive enough information to understand what the
+client actually is).
+
+There is a known issue that in certain versions of Safari, Safari
+will incorrectly make a request that allows this module to validate
+freshness of the resource even when Safari does not have a
+representation of the resource in the cache. The module
+[jumanji](https://www.npmjs.com/package/jumanji) can be used in
+an Express application to work-around this issue and also provides
+links to further reading on this Safari bug.
+
+## Example
+
+### API usage
+
+<!-- eslint-disable no-redeclare -->
+
+```js
+var reqHeaders = { 'if-none-match': '"foo"' }
+var resHeaders = { etag: '"bar"' }
+fresh(reqHeaders, resHeaders)
+// => false
+
+var reqHeaders = { 'if-none-match': '"foo"' }
+var resHeaders = { etag: '"foo"' }
+fresh(reqHeaders, resHeaders)
+// => true
+```
+
+### Using with Node.js http server
+
+```js
+var fresh = require('fresh')
+var http = require('http')
+
+var server = http.createServer(function (req, res) {
+  // perform server logic
+  // ... including adding ETag / Last-Modified response headers
+
+  if (isFresh(req, res)) {
+    // client has a fresh copy of resource
+    res.statusCode = 304
+    res.end()
+    return
+  }
+
+  // send the resource
+  res.statusCode = 200
+  res.end('hello, world!')
+})
+
+function isFresh (req, res) {
+  return fresh(req.headers, {
+    etag: res.getHeader('ETag'),
+    'last-modified': res.getHeader('Last-Modified')
+  })
+}
+
+server.listen(3000)
+```
+
+## License
+
+[MIT](LICENSE)
+
+[ci-image]: https://img.shields.io/github/workflow/status/jshttp/fresh/ci/master?label=ci
+[ci-url]: https://github.com/jshttp/fresh/actions/workflows/ci.yml
+[npm-image]: https://img.shields.io/npm/v/fresh.svg
+[npm-url]: https://npmjs.org/package/fresh
+[node-version-image]: https://img.shields.io/node/v/fresh.svg
+[node-version-url]: https://nodejs.org/en/
+[coveralls-image]: https://img.shields.io/coveralls/jshttp/fresh/master.svg
+[coveralls-url]: https://coveralls.io/r/jshttp/fresh?branch=master
+[downloads-image]: https://img.shields.io/npm/dm/fresh.svg
+[downloads-url]: https://npmjs.org/package/fresh
