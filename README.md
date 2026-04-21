@@ -1,53 +1,54 @@
-# call-bound <sup>[![Version Badge][npm-version-svg]][package-url]</sup>
+# dunder-proto <sup>[![Version Badge][npm-version-svg]][package-url]</sup>
 
 [![github actions][actions-image]][actions-url]
 [![coverage][codecov-image]][codecov-url]
-[![dependency status][deps-svg]][deps-url]
-[![dev dependency status][dev-deps-svg]][dev-deps-url]
 [![License][license-image]][license-url]
 [![Downloads][downloads-image]][downloads-url]
 
 [![npm badge][npm-badge-png]][package-url]
 
-Robust call-bound JavaScript intrinsics, using `call-bind` and `get-intrinsic`.
+If available, the `Object.prototype.__proto__` accessor and mutator, call-bound.
 
 ## Getting started
 
 ```sh
-npm install --save call-bound
+npm install --save dunder-proto
 ```
 
 ## Usage/Examples
 
 ```js
 const assert = require('assert');
-const callBound = require('call-bound');
+const getDunder = require('dunder-proto/get');
+const setDunder = require('dunder-proto/set');
 
-const slice = callBound('Array.prototype.slice');
+const obj = {};
 
-delete Function.prototype.call;
-delete Function.prototype.bind;
-delete Array.prototype.slice;
+assert.equal('toString' in obj, true);
+assert.equal(getDunder(obj), Object.prototype);
 
-assert.deepEqual(slice([1, 2, 3, 4], 1, -1), [2, 3]);
+setDunder(obj, null);
+
+assert.equal('toString' in obj, false);
+assert.equal(getDunder(obj), null);
 ```
 
 ## Tests
 
 Clone the repo, `npm install`, and run `npm test`
 
-[package-url]: https://npmjs.org/package/call-bound
-[npm-version-svg]: https://versionbadg.es/ljharb/call-bound.svg
-[deps-svg]: https://david-dm.org/ljharb/call-bound.svg
-[deps-url]: https://david-dm.org/ljharb/call-bound
-[dev-deps-svg]: https://david-dm.org/ljharb/call-bound/dev-status.svg
-[dev-deps-url]: https://david-dm.org/ljharb/call-bound#info=devDependencies
-[npm-badge-png]: https://nodei.co/npm/call-bound.png?downloads=true&stars=true
-[license-image]: https://img.shields.io/npm/l/call-bound.svg
+[package-url]: https://npmjs.org/package/dunder-proto
+[npm-version-svg]: https://versionbadg.es/es-shims/dunder-proto.svg
+[deps-svg]: https://david-dm.org/es-shims/dunder-proto.svg
+[deps-url]: https://david-dm.org/es-shims/dunder-proto
+[dev-deps-svg]: https://david-dm.org/es-shims/dunder-proto/dev-status.svg
+[dev-deps-url]: https://david-dm.org/es-shims/dunder-proto#info=devDependencies
+[npm-badge-png]: https://nodei.co/npm/dunder-proto.png?downloads=true&stars=true
+[license-image]: https://img.shields.io/npm/l/dunder-proto.svg
 [license-url]: LICENSE
-[downloads-image]: https://img.shields.io/npm/dm/call-bound.svg
-[downloads-url]: https://npm-stat.com/charts.html?package=call-bound
-[codecov-image]: https://codecov.io/gh/ljharb/call-bound/branch/main/graphs/badge.svg
-[codecov-url]: https://app.codecov.io/gh/ljharb/call-bound/
-[actions-image]: https://img.shields.io/endpoint?url=https://github-actions-badge-u3jn4tfpocch.runkit.sh/ljharb/call-bound
-[actions-url]: https://github.com/ljharb/call-bound/actions
+[downloads-image]: https://img.shields.io/npm/dm/dunder-proto.svg
+[downloads-url]: https://npm-stat.com/charts.html?package=dunder-proto
+[codecov-image]: https://codecov.io/gh/es-shims/dunder-proto/branch/main/graphs/badge.svg
+[codecov-url]: https://app.codecov.io/gh/es-shims/dunder-proto/
+[actions-image]: https://img.shields.io/endpoint?url=https://github-actions-badge-u3jn4tfpocch.runkit.sh/es-shims/dunder-proto
+[actions-url]: https://github.com/es-shims/dunder-proto/actions
